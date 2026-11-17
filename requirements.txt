@@ -1,0 +1,5 @@
+PySide6>=6.7
+pypdf>=4.0
+openpyxl>=3.1
+# optional, better PDF text layout:
+# PyMuPDF>=1.24

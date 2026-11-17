@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synvox-invoice-extractor"
+version = "1.0.0"
+description = "Synvox Invoice Extractor: read invoice PDFs, review the data, export to XLSX."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["PySide6>=6.7", "pypdf>=4.0", "openpyxl>=3.1"]
+
+[project.optional-dependencies]
+pymupdf = ["PyMuPDF>=1.24"]
+dev = ["pytest>=8.0", "pillow>=10.0", "pyinstaller>=6.6"]
+
+[project.gui-scripts]
+synvox-invoice = "synvox_invoice.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+synvox_invoice = ["assets/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
