@@ -15,8 +15,8 @@
 
 ## What it does
 
-1. **Drop PDFs** (one or many) onto the window, or click to browse.
-2. **Extraction** reads each PDF and fills the 13 columns of the *Contas a Pagar* model.
+1. **Drop PDFs** (one or many) onto the window, or click to browse. Text PDFs and scanned images both work.
+2. **Extraction** reads each PDF (with **OCR** when it has no text layer) and fills the 13 columns of the *Contas a Pagar* model.
 3. **Review** in an editable table. Required cells left empty are highlighted so nothing slips through.
 4. **Export XLSX**. If the target file already exists, new rows are appended below the last filled row.
 
@@ -34,7 +34,32 @@
 | TIPO OPERAÇÃO | `NF`, `CTE`, `Fatura` detected; otherwise the default chosen in the app |
 | LANÇADO POR / DATA INCLUSÃO | The operator field and today's date |
 
-Scanned PDFs without a text layer are reported, not guessed (OCR is not included).
+## OCR (scanned and image-only PDFs)
+
+Many suppliers send scans or photos saved as PDF. Synvox reads these automatically:
+
+- **When it runs**: if a PDF has (almost) no text layer, only the empty pages are OCR'd. It also runs as a second
+  chance when the text layer exists but is garbage (broken fonts) and the normal parse finds almost nothing;
+  the more complete reading wins.
+- **Engines** (best available is picked automatically):
+  1. **Tesseract** with the Portuguese model, if installed (best accuracy on accents).
+  2. **RapidOCR**, bundled with the installer: offline, no setup, no internet.
+- **OCR-aware parsing**: look-alike characters inside numbers are fixed (`O`→`0`, `l`→`1`, `S`→`5`), and an access
+  key with a single misread digit is repaired using its check digit, but only when exactly one fix is valid.
+- **In the app**: rows read with OCR are tagged `· OCR` in the *Source PDF* column and show a "double-check" hint.
+  The **OCR: on/off** button next to the filters turns it off (scanned PDFs are then rejected with a clear message).
+- **Speed**: about 1 to 2 s per page with Tesseract, 5 to 10 s with RapidOCR (the first file also loads the models).
+
+| Setting | Effect |
+|---|---|
+| `SYNVOX_OCR=0` | Disable OCR entirely |
+| `SYNVOX_OCR_ENGINE=tesseract` or `rapidocr` | Force one engine (default `auto`) |
+| `SYNVOX_TESSERACT=C:\path\tesseract.exe` | Point to a Tesseract install in a custom location |
+
+To use Tesseract on Windows, install it from [UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki) and tick
+the **Portuguese** language data during setup. Synvox finds it automatically.
+
+OCR output is never perfect on poor scans: always review the highlighted cells before exporting.
 
 ## Install (Windows)
 
@@ -51,21 +76,21 @@ pip install -r requirements.txt
 python -m synvox_invoice        # with PYTHONPATH=src, or: pip install -e .
 ```
 
-Optional: `pip install PyMuPDF` for better text layout on difficult PDFs. It is used automatically when present.
+Optional: `pip install PyMuPDF` for better text layout on difficult PDFs, and Tesseract (+ `por` language pack) for the most accurate OCR. Both are used automatically when present.
 
 ## Build the installer yourself
 
 Requires Python 3.10+ and [Inno Setup 6](https://jrsoftware.org/isdl.php) (`winget install JRSoftware.InnoSetup`).
 
 ```powershell
-.\installer\build_installer.ps1 -Version 1.0.0
+.\installer\build_installer.ps1 -Version 1.1.0
 ```
 
 The script creates a venv, runs the tests, regenerates the brand assets, builds the app with PyInstaller
 (`installer/synvox.spec`) and compiles `installer/synvox.iss`.
-The result is `installer\Output\Synvox-Invoice-Extractor-Setup-1.0.0.exe`.
+The result is `installer\Output\Synvox-Invoice-Extractor-Setup-1.1.0.exe`.
 
-Pushing a tag such as `v1.0.0` makes the GitHub Actions workflow build the installer and attach it to a release.
+Pushing a tag such as `v1.1.0` makes the GitHub Actions workflow build the installer and attach it to a release.
 
 ## Configuration
 
@@ -80,11 +105,12 @@ Pushing a tag such as `v1.0.0` makes the GitHub Actions workflow build the insta
 ```
 src/synvox_invoice/
   core.py        PDF text extraction, field parsing, XLSX export (no GUI code)
+  ocr.py         OCR engines (Tesseract, RapidOCR), page rendering, OCR text clean-up
   app.py         Qt window, drop zone, review table
   theme.py       Synvox design tokens and stylesheet
   paths.py       asset and per-user data locations
   assets/        logo, icon (svg / png / ico)
-tests/           pytest suite for the extraction logic
+tests/           pytest suite: extraction logic and OCR (builds a scanned PDF on the fly)
 installer/       PyInstaller spec, Inno Setup script, build script
 scripts/         make_assets.py (generates the logo and icons)
 docs/            brand guide, screenshot

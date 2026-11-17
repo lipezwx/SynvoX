@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QFile
                                QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
-from . import APP_NAME, __version__, core, paths
+from . import APP_NAME, __version__, core, ocr, paths
 from .theme import (CREAM, CREAM_HI, DANGER, FOREST, FOREST_DEEP, INK, STYLE, SURFACE, css,
                     font, rgba)
 
@@ -277,8 +277,9 @@ COL_PX = [150, 105, 100, 105, 110, 250, 115, 105, 120, 105, 95, 100, 120, 200]
 
 
 class App(QWidget):
-    parsed = Signal(str, list, list)     # path, row, missing
-    failed = Signal(str, str)            # path, error
+    parsed = Signal(str, list, list, bool)   # path, row, missing, read_with_ocr
+    failed = Signal(str, str)                # path, error
+    ocr_started = Signal(str)                # path
     batch_done = Signal()
 
     def __init__(self):
@@ -312,6 +313,7 @@ class App(QWidget):
         self.toast = Toast(self)
         self.parsed.connect(self.on_parsed)
         self.failed.connect(self.on_failed)
+        self.ocr_started.connect(self.on_ocr_started)
         self.batch_done.connect(self.on_batch_done)
 
     # ---------- top bar ----------
@@ -365,6 +367,14 @@ class App(QWidget):
         self.in_tipo.addItems(TIPOS)
         self.in_tipo.setFixedWidth(140)
 
+        self.btn_ocr = QPushButton()
+        self.btn_ocr.setObjectName("ghost")
+        self.btn_ocr.setCheckable(True)
+        self.btn_ocr.setCursor(Qt.PointingHandCursor)
+        self.btn_ocr.setChecked(ocr.enabled())
+        self.btn_ocr.toggled.connect(self._ocr_toggled)
+        self._ocr_toggled(self.btn_ocr.isChecked())
+
         btn_rm = QPushButton("Remove selected")
         btn_clear = QPushButton("Clear all")
         for b in (btn_rm, btn_clear):
@@ -378,10 +388,20 @@ class App(QWidget):
         row.addSpacing(8)
         row.addWidget(lbl("TIPO OPERAÇÃO (default)"))
         row.addWidget(self.in_tipo)
+        row.addSpacing(8)
+        row.addWidget(self.btn_ocr)
         row.addStretch()
         row.addWidget(btn_rm)
         row.addWidget(btn_clear)
         return row
+
+    def _ocr_toggled(self, on):
+        self.btn_ocr.setText("OCR: on" if on else "OCR: off")
+        self.btn_ocr.setToolTip("Read scanned or image-only PDFs with OCR (slower)." if on
+                                else "OCR is off: scanned PDFs will be rejected.")
+        self.btn_ocr.setStyleSheet(
+            f"QPushButton#ghost {{ background: {css(CREAM, 0.20)}; color: {CREAM_HI.name()}; "
+            f"border: 1px solid {CREAM.name()}; border-radius: 12px; padding: 8px 16px; }}" if on else "")
 
     # ---------- table ----------
     def build_table(self):
@@ -473,25 +493,32 @@ class App(QWidget):
         self.drop.set_busy(True)
         self.toast.show_message(f"Reading {len(new)} PDF(s)…")
         user, tipo = self.in_user.text().strip(), self.in_tipo.currentText().strip()
-        threading.Thread(target=self._worker, args=(new, user, tipo), daemon=True).start()
+        use_ocr = self.btn_ocr.isChecked()
+        threading.Thread(target=self._worker, args=(new, user, tipo, use_ocr), daemon=True).start()
 
-    def _worker(self, files, user, tipo):
+    def _worker(self, files, user, tipo, use_ocr):
         for p in files:
             try:
-                row, missing = core.extract_invoice(p, user, tipo, dump_dir=paths.logs_dir())
-                self.parsed.emit(p, row, missing)
+                row, missing, used = core.extract_invoice(
+                    p, user, tipo, dump_dir=paths.logs_dir(), use_ocr=use_ocr,
+                    on_ocr=lambda p=p: self.ocr_started.emit(p))
+                self.parsed.emit(p, row, missing, used)
             except Exception as err:
                 self.failed.emit(p, str(err))
         self.batch_done.emit()
 
-    def on_parsed(self, path, row, missing):
+    def on_ocr_started(self, path):
+        self.toast.show_message(f"{os.path.basename(path)}: running OCR, this can take a few seconds…",
+                                ms=6000)
+
+    def on_parsed(self, path, row, missing, used_ocr=False):
         t = self.table
         t.blockSignals(True)
         r = t.rowCount()
         t.insertRow(r)
-        f = QTableWidgetItem(os.path.basename(path))
+        f = QTableWidgetItem(os.path.basename(path) + ("  · OCR" if used_ocr else ""))
         f.setFlags(f.flags() & ~Qt.ItemIsEditable)
-        f.setToolTip(path)
+        f.setToolTip(path + ("\nRead with OCR: please double-check the values." if used_ocr else ""))
         f.setForeground(rgba(CREAM, 150))
         f.setData(Qt.UserRole, path)
         t.setItem(r, FILE_COL, f)
@@ -510,6 +537,8 @@ class App(QWidget):
         self.refresh_summary()
         if missing:
             self.toast.show_message(f"{os.path.basename(path)}: check {', '.join(missing)}", error=True)
+        elif used_ocr:
+            self.toast.show_message(f"{os.path.basename(path)}: read with OCR, please double-check", ms=4500)
 
     def on_failed(self, path, err):
         self._paths.discard(path)

@@ -15,7 +15,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pytest openpyxl pypdf
+      - name: Install Tesseract (Portuguese) for the OCR tests
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-por fonts-dejavu-core
+      - run: pip install pytest openpyxl pypdf pillow pypdfium2 rapidocr-onnxruntime
       - run: pytest -q
 
   installer:

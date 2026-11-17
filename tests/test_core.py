@@ -6,13 +6,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-# core has no Qt import, so these tests run without PySide6 installed
-import importlib.util
-
-_spec = importlib.util.spec_from_file_location(
-    "synvox_core", os.path.join(os.path.dirname(__file__), "..", "src", "synvox_invoice", "core.py"))
-core = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(core)
+# core/ocr have no Qt imports, so these tests run without PySide6 installed
+from synvox_invoice import core  # noqa: E402
 
 
 def make_key(uf="35", yymm="2610", cnpj="12345678000195", model="55", serie="001",

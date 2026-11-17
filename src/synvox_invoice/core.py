@@ -8,6 +8,8 @@ import os
 import re
 from datetime import date, datetime
 
+from . import ocr
+
 # ---------------------------------------------------------------
 # The pre-determined model (exact header text, including line breaks)
 # ---------------------------------------------------------------
@@ -86,29 +88,86 @@ def _mk_date(d, m, y):
 # ---------------------------------------------------------------
 # PDF reading
 # ---------------------------------------------------------------
-def read_pdf_text(path, max_pages=6):
+OCR_TRIGGER_CHARS = 150     # OCR kicks in when the text layer holds less than this in total
+OCR_PAGE_MIN_CHARS = 20     # ...and only pages with fewer characters than this are OCR'd
+
+
+def _native_pages(path, max_pages):
+    """Text of each page from the PDF's own text layer (PyMuPDF if installed, else pypdf)."""
     def _pymupdf():            # optional, best layout quality
         import fitz
         with fitz.open(path) as doc:
-            return "\n".join(pg.get_text() for pg in list(doc)[:max_pages])
+            return [pg.get_text() for pg in list(doc)[:max_pages]]
 
     def _pypdf():              # pure Python, works on any Python version
         from pypdf import PdfReader
         reader = PdfReader(path)
-        return "\n".join((pg.extract_text() or "") for pg in reader.pages[:max_pages])
+        return [(pg.extract_text() or "") for pg in reader.pages[:max_pages]]
 
-    text = ""
+    best = []
     for reader_fn in (_pymupdf, _pypdf):
         try:
-            text = reader_fn()
+            pages = reader_fn()
         except Exception:
-            text = ""
-        if len(text.strip()) >= 30:
+            pages = []
+        if sum(len(p.strip()) for p in pages) > sum(len(p.strip()) for p in best) or not best:
+            best = pages
+        if sum(len(p.strip()) for p in best) >= 30:
             break
-    text = text.replace("\xa0", " ")
+    return [p.replace("\xa0", " ") for p in best]
+
+
+def _page_count(path, max_pages):
+    try:
+        import pypdfium2 as pdfium
+        pdf = pdfium.PdfDocument(path)
+        try:
+            return min(len(pdf), max_pages)
+        finally:
+            pdf.close()
+    except Exception:
+        return 1
+
+
+def read_pdf_text_ex(path, max_pages=6, use_ocr=True, on_ocr=None, force_ocr=False):
+    """Returns (text, used_ocr).
+    The text layer is used when it exists. OCR runs when the PDF has (almost) no text, only on the
+    empty pages, or on every page when force_ocr is set (e.g. a garbled text layer)."""
+    pages = _native_pages(path, max_pages)
+    total = sum(len(p.strip()) for p in pages)
+    used, ocr_error = False, None
+
+    if use_ocr and ocr.enabled() and (force_ocr or total < OCR_TRIGGER_CHARS):
+        n = len(pages) or _page_count(path, max_pages)
+        pages = pages + [""] * (n - len(pages))
+        targets = list(range(n)) if force_ocr else \
+            [i for i in range(n) if len(pages[i].strip()) < OCR_PAGE_MIN_CHARS]
+        if targets:
+            if on_ocr:
+                on_ocr()
+            try:
+                found = ocr.ocr_pdf_pages(path, targets)
+            except Exception as err:
+                ocr_error = err
+            else:
+                for i, t in found.items():
+                    if t.strip():
+                        pages[i] = ocr.normalize_ocr_text(t)
+                        used = True
+
+    text = "\n".join(pages).replace("\xa0", " ")
     if len(text.strip()) < 30:
-        raise ValueError("No readable text in this PDF (scanned image?). OCR is needed.")
-    return text
+        if ocr_error:
+            raise ValueError(f"No readable text in this PDF and OCR failed: {ocr_error}")
+        if not use_ocr or not ocr.enabled():
+            raise ValueError("No readable text in this PDF (scanned image?). Turn OCR on to read it.")
+        raise ValueError("OCR could not find any text in this PDF.")
+    return text, used
+
+
+def read_pdf_text(path, max_pages=6):
+    """Text only (see read_pdf_text_ex for the OCR flag)."""
+    return read_pdf_text_ex(path, max_pages)[0]
 
 
 # ---------------------------------------------------------------
@@ -194,14 +253,38 @@ def _key_ok(k):
     return (0 if r < 2 else 11 - r) == int(k[43])
 
 
-def _find_keys(text):
-    """All valid access keys in the text, in order of appearance, without duplicates."""
+# digits that OCR engines swap for one another
+_SWAPS = {"0": "83", "1": "7", "2": "7", "3": "8", "4": "9", "5": "6", "6": "5", "7": "12", "8": "03", "9": "4"}
+
+
+def _repair_key(k):
+    """44 digits that fail the check digit because OCR misread ONE digit: try the usual swaps and
+    accept the result only if exactly one candidate is a valid key (otherwise it is ambiguous)."""
+    found = set()
+    for i, d in enumerate(k):
+        for alt in _SWAPS.get(d, ""):
+            cand = k[:i] + alt + k[i + 1:]
+            if _key_ok(cand):
+                found.add(cand)
+    return found.pop() if len(found) == 1 else None
+
+
+def _find_keys(text, repair=False):
+    """All valid access keys in the text, in order of appearance, without duplicates.
+    repair=True (OCR text) also fixes a single misread digit in a 44-digit run."""
     keys = []
     for m in KEY_RUN.finditer(text):
         digits = re.sub(r"\D", "", m.group(0))
+        hit = False
         for off in range(len(digits) - 43):
             k = digits[off:off + 44]
-            if _key_ok(k) and k not in keys:
+            if _key_ok(k):
+                hit = True
+                if k not in keys:
+                    keys.append(k)
+        if repair and not hit and len(digits) == 44:
+            k = _repair_key(digits)
+            if k and k not in keys:
                 keys.append(k)
     return keys
 
@@ -296,12 +379,12 @@ def _filename_number(filename):
     return best.lstrip("0")
 
 
-def parse_text(text, lancado_por="", tipo_default="", today=None, filename=""):
+def parse_text(text, lancado_por="", tipo_default="", today=None, filename="", ocr=False):
     """Returns (row[13 strings], missing_field_names)."""
     today = today or date.today()
     row = [""] * len(HEADERS)
 
-    keys = _find_keys(text)
+    keys = _find_keys(text, repair=ocr)
     nfe_keys = [k for k in keys if k[20:22] in ("55", "65")]
     cte_keys = [k for k in keys if k[20:22] in ("57", "67")]
     head = text[:1500]
@@ -393,16 +476,33 @@ def parse_text(text, lancado_por="", tipo_default="", today=None, filename=""):
     return row, missing
 
 
-def extract_invoice(path, lancado_por="", tipo_default="", dump_dir=None):
-    text = read_pdf_text(path)
+def extract_invoice(path, lancado_por="", tipo_default="", dump_dir=None, use_ocr=True, on_ocr=None):
+    """Returns (row, missing_field_names, used_ocr).
+    on_ocr is called (no arguments) right before OCR starts, so a UI can say "running OCR..."."""
+    name = os.path.basename(path)
+    text, used = read_pdf_text_ex(path, use_ocr=use_ocr, on_ocr=on_ocr)
+    row, missing = parse_text(text, lancado_por, tipo_default, filename=name, ocr=used)
+
+    # A text layer can exist and still be garbage (broken fonts). If the parse found almost nothing,
+    # OCR the pages and keep whichever reading is more complete.
+    if not used and use_ocr and ocr.enabled() and len(missing) >= 2:
+        try:
+            text2, used2 = read_pdf_text_ex(path, use_ocr=True, on_ocr=on_ocr, force_ocr=True)
+            row2, missing2 = parse_text(text2, lancado_por, tipo_default, filename=name, ocr=used2)
+            if used2 and len(missing2) < len(missing):
+                text, row, missing, used = text2, row2, missing2, True
+        except Exception:
+            pass
+
     if dump_dir:                      # keep the raw text so a bad extraction can be diagnosed
         try:
             os.makedirs(dump_dir, exist_ok=True)
-            with open(os.path.join(dump_dir, os.path.basename(path) + ".txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(dump_dir, name + (".ocr.txt" if used else ".txt")), "w",
+                      encoding="utf-8") as f:
                 f.write(text)
         except OSError:
             pass
-    return parse_text(text, lancado_por, tipo_default, filename=os.path.basename(path))
+    return row, missing, used
 
 
 # ---------------------------------------------------------------
