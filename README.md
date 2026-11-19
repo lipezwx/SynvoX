@@ -9,6 +9,8 @@
   A desktop app for accounts-payable teams. Reads Brazilian NF-e, CT-e, NFS-e and freight "fatura" PDFs.
 </p>
 
+<p align="center"><a href="https://github.com/lipezwx/SynvoX/releases/latest"><b>⬇️ Download for Windows</b></a> · Free · Open source · No account · Works offline</p>
+
 <p align="center">
   <img src="docs/screenshot.png" alt="Synvox Invoice Extractor" width="860">
 </p>
