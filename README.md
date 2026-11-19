@@ -80,6 +80,10 @@ Optional: `pip install PyMuPDF` for better text layout on difficult PDFs, and Te
 
 ## Build the installer yourself
 
+**Easiest:** double-click `BUILD-INSTALLER.bat`. It installs Python and Inno Setup with winget if missing, builds the app and opens `installer\Output` with the finished setup `.exe`.
+
+Manual route:
+
 Requires Python 3.10+ and [Inno Setup 6](https://jrsoftware.org/isdl.php) (`winget install JRSoftware.InnoSetup`).
 
 ```powershell
