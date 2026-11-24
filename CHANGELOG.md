@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-11-23)
 
 - **UI redesign, iOS style**: large title, bigger type everywhere (16 px body, 24 px headings), pill-shaped
   fields and buttons, translucent "glass" surfaces over a soft animated glow. Same Ink/Cream identity and logo.
