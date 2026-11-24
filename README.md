@@ -49,7 +49,7 @@ Many suppliers send scans or photos saved as PDF. Synvox reads these automatical
 - **OCR-aware parsing**: look-alike characters inside numbers are fixed (`O`→`0`, `l`→`1`, `S`→`5`), and an access
   key with a single misread digit is repaired using its check digit, but only when exactly one fix is valid.
 - **In the app**: rows read with OCR are tagged `· OCR` in the *Source PDF* column and show a "double-check" hint.
-  The **OCR: on/off** button next to the filters turns it off (scanned PDFs are then rejected with a clear message).
+  The **OCR** switch next to the filters turns it off (scanned PDFs are then rejected with a clear message).
 - **Speed**: about 1 to 2 s per page with Tesseract, 5 to 10 s with RapidOCR (the first file also loads the models).
 
 | Setting | Effect |

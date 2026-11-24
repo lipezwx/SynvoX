@@ -63,6 +63,19 @@ def logo(height=256):
     return im.resize((w // SS, h // SS), Image.LANCZOS)
 
 
+def chevron(size=28):
+    """Down chevron for combo boxes, cream on transparent."""
+    s = size * SS
+    im = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    w = int(s * 0.12)
+    pts = [(s * 0.22, s * 0.36), (s * 0.5, s * 0.64), (s * 0.78, s * 0.36)]
+    d.line(pts, fill=CREAM + (255,), width=w, joint="curve")
+    for x, y in (pts[0], pts[2]):
+        d.ellipse((x - w / 2, y - w / 2, x + w / 2, y + w / 2), fill=CREAM + (255,))
+    return im.resize((size, size), Image.LANCZOS)
+
+
 SVG = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <rect width="512" height="512" rx="113" fill="#0D1311"/>
   <rect x="36" y="36" width="440" height="440" rx="87" fill="none" stroke="#F6EECA" stroke-width="15"/>
@@ -79,6 +92,7 @@ if __name__ == "__main__":
     big.save(os.path.join(OUT, "synvox_icon.ico"),
              sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     logo().save(os.path.join(OUT, "synvox_logo.png"))
+    chevron().save(os.path.join(OUT, "chevron.png"))
     with open(os.path.join(OUT, "synvox_icon.svg"), "w", encoding="utf-8") as f:
         f.write(SVG)
     print("assets written to", os.path.abspath(OUT))

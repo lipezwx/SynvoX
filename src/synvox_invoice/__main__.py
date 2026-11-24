@@ -13,7 +13,7 @@ def main():
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(ORG_NAME)
     app.setApplicationVersion(__version__)
-    app.setFont(font(13))
+    app.setFont(font(15))
     app.setWindowIcon(QIcon(paths.asset("synvox_icon.png")))
     window = App()
     window.show()
