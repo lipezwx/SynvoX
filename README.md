@@ -9,7 +9,7 @@
   A desktop app for accounts-payable teams. Reads Brazilian NF-e, CT-e, NFS-e and freight "fatura" PDFs.
 </p>
 
-<p align="center"><a href="https://github.com/lipezwx/SynvoX/releases/latest"><b>⬇️ Download for Windows</b></a> · Free · Open source · No account · Works offline</p>
+<p align="center"><a href="https://github.com/lipezwx/SynvoX/releases/latest"><b>⬇️ Download for Windows</b></a> · v1.2.0 · Free · Open source · No account · Works offline</p>
 
 <p align="center">
   <img src="docs/screenshot.png" alt="Synvox Invoice Extractor" width="860">
@@ -17,9 +17,13 @@
 
 ## What it does
 
+> **New in 1.2.0:** a redesigned, iOS-style interface. Large title, bigger text, rounded glass buttons, a single
+> drop zone, an OCR switch and one big **Export XLSX** button. Same data model, same extraction. See the
+> [changelog](CHANGELOG.md).
+
 1. **Drop PDFs** (one or many) onto the window, or click to browse. Text PDFs and scanned images both work.
 2. **Extraction** reads each PDF (with **OCR** when it has no text layer) and fills the 13 columns of the *Contas a Pagar* model.
-3. **Review** in an editable table. Required cells left empty are highlighted so nothing slips through.
+3. **Review** in an editable table (double-click a cell to edit, `Del` removes the selected rows). Required cells left empty are highlighted in red so nothing slips through.
 4. **Export XLSX**. If the target file already exists, new rows are appended below the last filled row.
 
 ### What gets extracted
@@ -49,7 +53,7 @@ Many suppliers send scans or photos saved as PDF. Synvox reads these automatical
 - **OCR-aware parsing**: look-alike characters inside numbers are fixed (`O`→`0`, `l`→`1`, `S`→`5`), and an access
   key with a single misread digit is repaired using its check digit, but only when exactly one fix is valid.
 - **In the app**: rows read with OCR are tagged `· OCR` in the *Source PDF* column and show a "double-check" hint.
-  The **OCR: on/off** button next to the filters turns it off (scanned PDFs are then rejected with a clear message).
+  The **OCR** switch next to the filters turns it off (scanned PDFs are then rejected with a clear message).
 - **Speed**: about 1 to 2 s per page with Tesseract, 5 to 10 s with RapidOCR (the first file also loads the models).
 
 | Setting | Effect |
@@ -63,11 +67,27 @@ the **Portuguese** language data during setup. Synvox finds it automatically.
 
 OCR output is never perfect on poor scans: always review the highlighted cells before exporting.
 
+### The interface
+
+| Area | What it does |
+|---|---|
+| **Drop zone** | Drop PDFs anywhere on the window, click it, or focus it with `Tab` and press `Space`. While files are read it shows a spinner and how many are left. |
+| **Lançado por / Tipo operação** | Defaults applied to every new row. Both stay editable per cell afterwards. |
+| **OCR switch** | On by default when an OCR engine is available. Off rejects scanned PDFs with a clear message. |
+| **List** | One row per invoice. The *Source PDF* column keeps the file name (full path on hover). |
+| **Bottom bar** | Invoice count and total value, and the **Export XLSX** button. |
+
+*Remove selected*, *Clear all* and *Export XLSX* only light up when they have something to act on.
+The window can be resized by dragging its bottom-right corner.
+
 ## Install (Windows)
 
-Download `Synvox-Invoice-Extractor-Setup-<version>.exe` from the
-[Releases](../../releases) page (or from the **Build** workflow artifacts) and run it.
-It installs per user by default, adds a Start Menu entry and an optional desktop shortcut, and has a normal uninstaller.
+1. Open the [latest release](https://github.com/lipezwx/SynvoX/releases/latest).
+2. Download **`Synvox-Invoice-Extractor-Setup-1.2.0.exe`** and run it.
+
+It installs per user by default, adds a Start Menu entry and an optional desktop shortcut, and has a normal
+uninstaller. The installer is not code-signed yet, so Windows SmartScreen may show a warning the first time:
+choose **More info → Run anyway**.
 
 ## Run from source
 
@@ -89,14 +109,14 @@ Manual route:
 Requires Python 3.10+ and [Inno Setup 6](https://jrsoftware.org/isdl.php) (`winget install JRSoftware.InnoSetup`).
 
 ```powershell
-.\installer\build_installer.ps1 -Version 1.1.0
+.\installer\build_installer.ps1 -Version 1.2.0
 ```
 
 The script creates a venv, runs the tests, regenerates the brand assets, builds the app with PyInstaller
 (`installer/synvox.spec`) and compiles `installer/synvox.iss`.
-The result is `installer\Output\Synvox-Invoice-Extractor-Setup-1.1.0.exe`.
+The result is `installer\Output\Synvox-Invoice-Extractor-Setup-1.2.0.exe`.
 
-Pushing a tag such as `v1.1.0` makes the GitHub Actions workflow build the installer and attach it to a release.
+Pushing a tag such as `v1.2.0` makes the GitHub Actions workflow build the installer and attach it to a release.
 
 ## Configuration
 
@@ -112,10 +132,10 @@ Pushing a tag such as `v1.1.0` makes the GitHub Actions workflow build the insta
 src/synvox_invoice/
   core.py        PDF text extraction, field parsing, XLSX export (no GUI code)
   ocr.py         OCR engines (Tesseract, RapidOCR), page rendering, OCR text clean-up
-  app.py         Qt window, drop zone, review table
-  theme.py       Synvox design tokens and stylesheet
+  app.py         Qt window, glass buttons, drop zone, review table
+  theme.py       Synvox design tokens (Ink/Cream tonal ramp), type scale and stylesheet
   paths.py       asset and per-user data locations
-  assets/        logo, icon (svg / png / ico)
+  assets/        logo, icon (svg / png / ico), combo-box chevron
 tests/           pytest suite: extraction logic and OCR (builds a scanned PDF on the fly)
 installer/       PyInstaller spec, Inno Setup script, build script
 scripts/         make_assets.py (generates the logo and icons)
@@ -132,7 +152,7 @@ python scripts/make_assets.py   # after changing the logo
 
 ## Brand
 
-Two-colour identity, ink `#0D1311` and cream `#F6EECA`. See [docs/BRAND.md](docs/BRAND.md).
+Two-colour identity, ink `#0D1311` and cream `#F6EECA`, with every neutral derived from those two. iOS-style type, pills and glass. See [docs/BRAND.md](docs/BRAND.md).
 
 ## License
 

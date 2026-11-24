@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synvox-invoice-extractor"
-version = "1.1.0"
+version = "1.2.0"
 description = "Synvox Invoice Extractor: read invoice PDFs, review the data, export to XLSX."
 readme = "README.md"
 requires-python = ">=3.10"

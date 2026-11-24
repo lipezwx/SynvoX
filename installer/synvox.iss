@@ -3,7 +3,7 @@
 ; Version can be overridden:  iscc /DAppVersion=1.2.3 installer\synvox.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #define AppVersion "1.2.0"
 #endif
 #define AppName      "Synvox Invoice Extractor"
 #define AppPublisher "Synvox"

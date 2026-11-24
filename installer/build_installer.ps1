@@ -10,7 +10,7 @@
             or: winget install JRSoftware.InnoSetup)
   Output:   installer\Output\Synvox-Invoice-Extractor-Setup-<version>.exe
 #>
-param([string]$Version = "1.1.0", [switch]$SkipTests)
+param([string]$Version = "1.2.0", [switch]$SkipTests)
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 
